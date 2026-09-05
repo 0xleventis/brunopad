@@ -8,7 +8,15 @@ cbor_metadata = false
 viaIR = true
 evm_version = "cancun"
 optimizer = true
-optimizer_runs = 20_000
+# Real deployment bug hit live: the vendored 20_000 (favors runtime gas over deployment size) compiles
+# ClankerLpLockerFeeConversion to 27,575 bytes — over EIP-170's 24,576-byte limit, so it can't actually be
+# deployed at all. Confirmed by reading Clanker's own real, live locker deployment on Robinhood Chain
+# directly via eth_getCode: theirs is 24,150 bytes, so their actual build used a lower runs count than this
+# vendored config claims (a per-contract "forge-config" comment override was tried first but had no effect
+# on optimizer_runs specifically — this project-wide setting is the one that's actually honored). Lower
+# runs trades some runtime gas efficiency for meaningfully smaller bytecode across every contract here —
+# an acceptable tradeoff given the alternative is simply being unable to deploy the locker at all.
+optimizer_runs = 1
 
 
 [fmt]

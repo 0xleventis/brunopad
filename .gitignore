@@ -11,6 +11,10 @@ contracts/lib/
 contracts/out/
 contracts/cache/
 
+# Dry-run simulation output (no real transactions) — a real --broadcast's receipts are worth keeping as a
+# deployment record, but dry runs regenerate every time and aren't
+contracts/broadcast/*/*/dry-run/
+
 # scratch/debug artifacts
 scratch_*.txt
 scratch_*.json
