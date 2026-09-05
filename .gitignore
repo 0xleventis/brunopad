@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.local
+*.log
+
+# Local clones of other people's repos, kept for reference only — not part of this project
+reference/
+
+# Foundry dependency clones — not vendored, reinstall via git clone per README
+contracts/lib/
+contracts/out/
+contracts/cache/
+
+# scratch/debug artifacts
+scratch_*.txt
+scratch_*.json
