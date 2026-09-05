@@ -3,23 +3,25 @@ pragma solidity ^0.8.28;
 
 import {Script, console2} from "forge-std/Script.sol";
 
-import {Clanker} from "../src/Clanker.sol";
-import {ClankerFeeLocker} from "../src/ClankerFeeLocker.sol";
-import {ClankerHookStaticFeeV2} from "../src/hooks/ClankerHookStaticFeeV2.sol";
-import {ClankerPoolExtensionAllowlist} from "../src/hooks/ClankerPoolExtensionAllowlist.sol";
-import {ClankerLpLockerFeeConversion} from "../src/lp-lockers/ClankerLpLockerFeeConversion.sol";
+import {Bruno} from "../src/Bruno.sol";
+import {BrunoFeeLocker} from "../src/BrunoFeeLocker.sol";
+import {BrunoHookStaticFeeV2} from "../src/hooks/BrunoHookStaticFeeV2.sol";
+import {BrunoPoolExtensionAllowlist} from "../src/hooks/BrunoPoolExtensionAllowlist.sol";
+import {BrunoLpLockerFeeConversion} from "../src/lp-lockers/BrunoLpLockerFeeConversion.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 
-/// Deploys a fresh, Brunopad-owned instance of Clanker v4's protocol on Robinhood Chain — a real fork
-/// (MIT-licensed source), not a client of Clanker's own shared deployment. Every address below was read
-/// directly off Clanker's own live contracts on Robinhood Chain (public getters, verified via RPC — see
-/// this deployment's own investigation notes), not guessed or copied from docs.
+/// Deploys a fresh, Brunopad-owned instance of Clanker v4's protocol on Robinhood Chain (renamed
+/// Bruno/Bruno* throughout — a real fork, MIT-licensed source, not a client of Clanker's own shared
+/// deployment). Every address below was read directly off Clanker's own live contracts on Robinhood Chain
+/// (public getters, verified via RPC — see this deployment's own investigation notes), not guessed or
+/// copied from docs.
 ///
-/// The MEV module is the one piece deliberately NOT redeployed: ClankerMevDescendingFees has no
-/// constructor and no factory-binding at all (confirmed by reading its source — no `onlyFactory`, no
-/// `Ownable`), so Clanker's own already-live instance is safe and correct to reuse directly via
-/// `setMevModule`.
+/// The MEV module is the one piece deliberately NOT redeployed (and NOT renamed — it's Clanker's own
+/// contract, left as-is): BrunoMevDescendingFees (source name post-rename; the live instance below is
+/// Clanker's own original deployment) has no constructor and no factory-binding at all (confirmed by
+/// reading its source — no `onlyFactory`, no `Ownable`), so Clanker's own already-live instance is safe
+/// and correct to reuse directly via `setMevModule`.
 ///
 /// Run as a dry run first (no --broadcast) to confirm this simulates cleanly before spending real gas:
 ///   forge script script/DeployBrunopad.s.sol --rpc-url https://rpc.mainnet.chain.robinhood.com -vvvv
@@ -28,7 +30,7 @@ import {HookMiner} from "@uniswap/v4-periphery/src/utils/HookMiner.sol";
 ///     --broadcast --private-key $PRIVATE_KEY -vvvv
 contract DeployBrunopad is Script {
     // Permanent owner of the new factory/fee locker/allowlist — controls which hooks/lockers/MEV modules
-    // are ever enabled, and where protocol-level fees (Clanker.sol's claimTeamFees) go. Set explicitly by
+    // are ever enabled, and where protocol-level fees (Bruno.sol's claimTeamFees) go. Set explicitly by
     // the project owner, not derived from whoever happens to run this script.
     address constant OWNER = 0xdb5FbCd6fb5C46F6F52B62ACAE333a3AE0b0F108;
 
@@ -55,17 +57,17 @@ contract DeployBrunopad is Script {
     function run() external {
         vm.startBroadcast();
 
-        Clanker factory = new Clanker(OWNER);
+        Bruno factory = new Bruno(OWNER);
         console2.log("Factory:", address(factory));
 
-        ClankerFeeLocker feeLocker = new ClankerFeeLocker(OWNER);
+        BrunoFeeLocker feeLocker = new BrunoFeeLocker(OWNER);
         console2.log("Fee locker:", address(feeLocker));
 
-        ClankerPoolExtensionAllowlist allowlist = new ClankerPoolExtensionAllowlist(OWNER);
+        BrunoPoolExtensionAllowlist allowlist = new BrunoPoolExtensionAllowlist(OWNER);
         console2.log("Pool extension allowlist:", address(allowlist));
 
         // Uniswap v4 requires a hook's own address to encode which callbacks it implements in its low
-        // bits — mine a CREATE2 salt that produces such an address for ClankerHookStaticFeeV2's exact
+        // bits — mine a CREATE2 salt that produces such an address for BrunoHookStaticFeeV2's exact
         // permission set (read directly from its own getHookPermissions() override) before deploying it.
         uint160 flags = uint160(
             Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_SWAP_FLAG
@@ -74,15 +76,15 @@ contract DeployBrunopad is Script {
         );
         bytes memory hookConstructorArgs = abi.encode(POOL_MANAGER, address(factory), address(allowlist), WETH);
         (address predictedHookAddress, bytes32 hookSalt) = HookMiner.find(
-            CREATE2_DEPLOYER, flags, type(ClankerHookStaticFeeV2).creationCode, hookConstructorArgs
+            CREATE2_DEPLOYER, flags, type(BrunoHookStaticFeeV2).creationCode, hookConstructorArgs
         );
 
-        ClankerHookStaticFeeV2 hook =
-            new ClankerHookStaticFeeV2{salt: hookSalt}(POOL_MANAGER, address(factory), address(allowlist), WETH);
+        BrunoHookStaticFeeV2 hook =
+            new BrunoHookStaticFeeV2{salt: hookSalt}(POOL_MANAGER, address(factory), address(allowlist), WETH);
         require(address(hook) == predictedHookAddress, "hook address mismatch");
         console2.log("Hook (static fee v2):", address(hook));
 
-        ClankerLpLockerFeeConversion locker = new ClankerLpLockerFeeConversion(
+        BrunoLpLockerFeeConversion locker = new BrunoLpLockerFeeConversion(
             OWNER, address(factory), address(feeLocker), POSITION_MANAGER, PERMIT2, UNIVERSAL_ROUTER, POOL_MANAGER
         );
         console2.log("LP locker:", address(locker));

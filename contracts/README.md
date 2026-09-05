@@ -5,6 +5,12 @@ factory, fee locker, hooks, LP lockers, MEV modules, extensions — deployed as 
 independently-owned instance rather than calling Clanker's shared, already-live deployment (which is what
 `../launch/deploy.mjs`'s `clanker-sdk` call does today).
 
+Every `Clanker*`/`IClanker*` file and identifier in the vendored source was renamed to `Bruno*`/`IBruno*` —
+this is meant to be a Bruno-branded launchpad, not a visibly-Clanker one, and the original names would
+otherwise show up as the "Contract Name" on any block explorer once these are verified. This README still
+says "Clanker" wherever it's genuinely talking about the real upstream project (what this was forked from,
+whose live contracts some addresses/reads below point at) — only the actual code identifiers changed.
+
 ## Setup
 
 `contracts/lib/` is gitignored (Foundry dependency clones, not vendored) and must be fetched at the exact
@@ -55,11 +61,12 @@ auto-discovered mapping doubles the `src/` segment. The explicit line in `remapp
 
 ### Why `optimizer_runs = 1`, not Clanker's own `200`
 
-Building with Clanker's own real settings (confirmed via their verified `ClankerLpLockerFeeConversion` on
-Robinhood Chain: solc 0.8.28, viaIR, `optimizer.runs: 200`, `bytecodeHash: none`) still compiles this
-vendored source to a *larger* `ClankerLpLockerFeeConversion` than their real deployment (24,529 bytes vs.
-their live 24,150) — likely a subtle difference in exactly which historical commit of an upstream dependency
-their real deployment was built against vs. what's pinned above. `runs = 200` still fits under EIP-170's
+Building with Clanker's own real settings (confirmed via their verified `ClankerLpLockerFeeConversion` —
+now `BrunoLpLockerFeeConversion` post-rename, identical source otherwise — on Robinhood Chain: solc 0.8.28,
+viaIR, `optimizer.runs: 200`, `bytecodeHash: none`) still compiles this vendored source to a *larger*
+`BrunoLpLockerFeeConversion` than Clanker's real deployment (24,529 bytes vs. their live 24,150) — likely a
+subtle difference in exactly which historical commit of an upstream dependency their real deployment was
+built against vs. what's pinned above. `runs = 200` still fits under EIP-170's
 24,576-byte limit, but with only 47 bytes of headroom — too fragile for a setting anyone could accidentally
 tip over later. `runs = 1` buys real margin (141 bytes) at the cost of somewhat higher runtime gas on the
 locker's own functions, an acceptable tradeoff for a contract that's deployed once and not
@@ -93,8 +100,9 @@ forge script script/DeployBrunopad.s.sol --rpc-url https://rpc.mainnet.chain.rob
   --broadcast --private-key $PRIVATE_KEY -vvvv
 ```
 
-Fund that address with at least ~0.02 ETH on Robinhood Chain first (last dry run estimated
-~0.0196 ETH total gas for all 5 deployments + 4 wiring calls).
+Fund that address with at least ~0.03 ETH on Robinhood Chain first for margin — dry runs have estimated
+anywhere from ~0.02 to ~0.025 ETH total gas for all 5 deployments + 4 wiring calls, depending on the
+network's gas price at the time.
 
 After a successful broadcast, save the 5 deployed addresses it logs (factory, fee locker, allowlist, hook,
 LP locker) — the Hoodbrunos frontend's `/launch` page needs the factory address to call `deployToken` on.
