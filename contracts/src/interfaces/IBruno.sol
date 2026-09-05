@@ -24,6 +24,16 @@ interface IBruno is IOwnerAdmins {
         bytes poolData;
     }
 
+    // Same pattern o1.exchange's own factory uses for its registered stock quotes (WETH, USDC, AAPLc,
+    // NVDAc, ...): a quote asset's correct starting price isn't something an individual creator should
+    // pick per-launch (get it wrong pairing against a real-priced asset — a stock, say — and the pool is
+    // an instant arbitrage drain, not a cosmetic bug) — the owner registers it once, calibrated for that
+    // asset, and every launch against it inherits the same frame.
+    struct QuoteInfo {
+        bool registered;
+        int24 startTickFrame;
+    }
+
     struct LockerConfig {
         address locker;
         // reward info
@@ -102,6 +112,10 @@ interface IBruno is IOwnerAdmins {
     /// @notice When the team fee recipient is not set
     error TeamFeeRecipientNotSet();
 
+    /// @notice When poolConfig.pairedToken isn't a registered quote asset, or the caller-supplied
+    ///         starting tick doesn't match that quote's registered frame
+    error QuoteNotRegistered();
+
     event TokenCreated(
         address msgSender,
         address indexed tokenAddress,
@@ -131,7 +145,13 @@ interface IBruno is IOwnerAdmins {
     event SetTeamFeeRecipient(address oldTeamFeeRecipient, address newTeamFeeRecipient);
     event ClaimTeamFees(address indexed token, address indexed recipient, uint256 amount);
 
+    event SetQuote(address indexed quoteToken, bool registered, int24 startTickFrame);
+
     function deprecated() external view returns (bool);
+
+    function quotes(address quoteToken) external view returns (bool registered, int24 startTickFrame);
+
+    function setQuote(address quoteToken, bool registered, int24 startTickFrame) external;
 
     function deployTokenZeroSupply(TokenConfig memory tokenConfig)
         external

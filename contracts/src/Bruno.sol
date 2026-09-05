@@ -54,6 +54,11 @@ contract Bruno is OwnerAdmins, ReentrancyGuard, IBruno {
     address public teamFeeRecipient;
     mapping(address token => DeploymentInfo deploymentInfo) public deploymentInfoForToken;
 
+    // registered quote assets a new pool is allowed to pair against, each with its own owner-calibrated
+    // starting-price frame — see IBruno.QuoteInfo's own header comment for why this isn't left to
+    // individual creators to pick per-launch.
+    mapping(address quoteToken => QuoteInfo quoteInfo) public quotes;
+
     // enabled factory modules
     mapping(address hook => bool enabled) enabledHooks;
     mapping(address locker => mapping(address hook => bool enabled)) public enabledLockers;
@@ -122,6 +127,11 @@ contract Bruno is OwnerAdmins, ReentrancyGuard, IBruno {
         emit SetMevModule(mevModule, enabled);
     }
 
+    function setQuote(address quoteToken, bool registered, int24 startTickFrame) external onlyOwnerOrAdmin {
+        quotes[quoteToken] = QuoteInfo({registered: registered, startTickFrame: startTickFrame});
+        emit SetQuote(quoteToken, registered, startTickFrame);
+    }
+
     // enable a extension contract for use, note the extension may implement its own access control
     function setExtension(address extension, bool enabled) external onlyOwnerOrAdmin {
         // check that the extension contract supports the IBrunoExtension interface
@@ -141,7 +151,7 @@ contract Bruno is OwnerAdmins, ReentrancyGuard, IBruno {
         returns (address tokenAddress)
     {
         if (block.chainid == tokenConfig.originatingChainId) revert OnlyNonOriginatingChains();
-        tokenAddress = BrunoDeployer.deployToken(tokenConfig, TOKEN_SUPPLY);
+        tokenAddress = _createToken(tokenConfig, TOKEN_SUPPLY);
     }
 
     // Deploy a token and pool with the option to vault the token and buy an initial amount
@@ -157,7 +167,7 @@ contract Bruno is OwnerAdmins, ReentrancyGuard, IBruno {
         }
 
         // deploy the token
-        tokenAddress = BrunoDeployer.deployToken(deploymentConfig.tokenConfig, TOKEN_SUPPLY);
+        tokenAddress = _createToken(deploymentConfig.tokenConfig, TOKEN_SUPPLY);
 
         // figure out the supply split
         uint256 extensionsSupply = _prepareExtensions(deploymentConfig.extensionConfigs);
@@ -219,6 +229,17 @@ contract Bruno is OwnerAdmins, ReentrancyGuard, IBruno {
         });
     }
 
+    // Overridden on Base (see BrunoBase.sol) to mint through Base's own B-20 standard factory instead of
+    // deploying BrunoToken.sol bytecode — everything else in this contract (pool creation, LP locking,
+    // fee split, extensions, MEV module) is shared unchanged between chains.
+    function _createToken(TokenConfig memory tokenConfig, uint256 supply)
+        internal
+        virtual
+        returns (address tokenAddress)
+    {
+        tokenAddress = BrunoDeployer.deployToken(tokenConfig, supply);
+    }
+
     function _initializeMevModule(DeploymentConfig memory deploymentConfig, PoolKey memory poolKey)
         internal
     {
@@ -241,6 +262,13 @@ contract Bruno is OwnerAdmins, ReentrancyGuard, IBruno {
         // check that the pool hook is enabled
         if (!enabledHooks[poolConfig.hook]) {
             revert HookNotEnabled();
+        }
+
+        // the paired asset must be a registered quote with a caller-supplied starting tick matching
+        // exactly what the owner calibrated for it — see IBruno.QuoteInfo's own header comment for why.
+        QuoteInfo memory quoteInfo = quotes[poolConfig.pairedToken];
+        if (!quoteInfo.registered || poolConfig.tickIfToken0IsBruno != quoteInfo.startTickFrame) {
+            revert QuoteNotRegistered();
         }
 
         // call into the hook to initialize the pool
