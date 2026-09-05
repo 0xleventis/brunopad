@@ -95,6 +95,13 @@ contract DeployBrunopad is Script {
         factory.setMevModule(EXISTING_MEV_MODULE, true);
         feeLocker.addDepositor(address(locker));
 
+        // The constructor deliberately starts the factory `deprecated` ("only non-originating token
+        // deployments are enabled before initialization" — its own comment) — real bug hit live: a real
+        // deployToken call against a freshly-deployed-but-not-yet-activated factory reverts with
+        // Deprecated(), confirmed by decoding the exact revert selector against every error IBruno.sol
+        // declares. This is the step that actually turns launches on.
+        factory.setDeprecated(false);
+
         vm.stopBroadcast();
 
         console2.log("\n=== Brunopad deployment summary ===");
