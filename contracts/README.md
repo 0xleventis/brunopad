@@ -72,10 +72,16 @@ locker (each address read directly from Clanker's own live Robinhood Chain deplo
 script's own header comment), reusing Clanker's existing MEV module as-is (it has no constructor and no
 factory-binding, confirmed by reading its source, so it's generic infrastructure safe to share).
 
-Dry run first (no `--broadcast`, no cost) to confirm it still simulates cleanly against current chain state:
+Dry run first (no `--broadcast`, no cost) to confirm it still simulates cleanly against current chain state.
+`--sender` matters here even without broadcasting: the wiring calls (`setHook`, `setLocker`,
+`setMevModule`) are `onlyOwner`, and without an explicit sender `forge script` simulates as its own
+arbitrary placeholder address instead of the real `OWNER` — reverting with `Unauthorized()` even though
+nothing is actually wrong (confirmed live: this is exactly what happened omitting it). The real broadcast
+below doesn't need this flag since `--private-key` already fixes the sender to the right address.
 
 ```sh
-forge script script/DeployBrunopad.s.sol --rpc-url https://rpc.mainnet.chain.robinhood.com -vvvv
+forge script script/DeployBrunopad.s.sol --rpc-url https://rpc.mainnet.chain.robinhood.com \
+  --sender 0xdb5FbCd6fb5C46F6F52B62ACAE333a3AE0b0F108 -vvvv
 ```
 
 Then, run by whoever holds the `OWNER` address's private key (currently hardcoded in the script as
